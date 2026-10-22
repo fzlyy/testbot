@@ -137,6 +137,19 @@ NapCat 靠**精确的 QQ 构建号**定位内存偏移，偏移表在 `napcat/sh
 升级 QQ 前先确认新构建号在表里，否则启动会显示「当前 QQ 版本低于 NativePacketClient 要求」并拒绝注入。
 换 QQ 大版本时，NapCat 也要跟着换到匹配的 release。
 
+### 6.5 提交前检查
+
+`data/`、`logs/`、`napcat/`、`.venv/` 都在忽略列表里，但**新写的脚本仍可能把密钥硬编码进去**
+（本项目第一版 `setup_persona.py` 就写死过面板密码）。提交前跑：
+
+```powershell
+git status --short
+git grep --cached -n -I -E "sk-[A-Za-z0-9]{10,}"     # API Key
+git grep --cached -n -I "password"                    # 硬编码口令
+```
+
+密钥一律走环境变量（如 `$env:ASTRBOT_DASHBOARD_PASSWORD`），不要写进源码。
+
 ## 7. 常用命令
 
 ```powershell
@@ -197,7 +210,7 @@ Select-String -Path logs\astrbot-console.log -Pattern 'aiocqhttp' -SimpleMatch
 - **主动回复白名单为空**（`provider_ltm_settings.active_reply.whitelist = []`），等于所有群都生效；有群号后应锁死
 - `sticker_bank` 的配图是**纯随机**，没有语义匹配（要做需视觉模型打标签 + LLM 选图）
 - 表情包库存目前为 0，还没跑过真实流量验证偷图链路
-- 没有 git 仓库；建议 `git init` 并加 `.gitignore`（排除 `.venv/`、`data/`、`logs/`、`napcat/`、`*.bak-*`）
+- 仓库已初始化（分支 `main`），`.gitignore` 排除了 `.venv/`、`data/`、`logs/`、`napcat/`、`tools/`、`.tmp/`、`*.bak-*`；提交前见 6.5
 - 无开机自启（可把 `start-all.cmd` 的快捷方式放进 `shell:startup`）
 
 ## 12. 不要做的事
