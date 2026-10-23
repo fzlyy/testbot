@@ -33,6 +33,31 @@ QQ 小号 ←扫码登录→ NapCat（OneBot v11 协议端）← 反向 WS → A
 
 ### 2.1 怎么连上去
 
+> **本机已验证（2026-10-23）：优先用工作区密钥，免密、一次成功。**
+>
+> 私钥在 `.ssh/astrbot_ed25519`（`-N ""`，无 passphrase），公钥已经装到服务器；
+> `.ssh/` 已 gitignore，**不要提交**。
+>
+> ```powershell
+> ssh -i .ssh\astrbot_ed25519 `
+>     -o IdentitiesOnly=yes `
+>     -o BatchMode=yes `
+>     -o UserKnownHostsFile=.ssh\known_hosts `
+>     -o StrictHostKeyChecking=accept-new `
+>     root@8.147.107.136 "echo OK; hostname"
+> ```
+>
+> 期望输出：
+>
+> ```text
+> OK
+> iZ2ze3xrryab2ets4hr7r2Z
+> ```
+>
+> 不会再问密码。换机器/密钥丢失时，用下面的 **E** 密码方式连上，再把
+> `ssh-keygen -y -f .ssh\astrbot_ed25519` 的输出追加到服务器
+> `~/.ssh/authorized_keys`。
+
 **A. 阿里云 Workbench（什么都不用装）**
 
 控制台 → 云服务器 ECS → 实例 → 远程连接 → Workbench → 输入 root 密码。断网重连也不受影响，适合临时看一眼。
@@ -53,6 +78,11 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@8.147.107.136 "mkdir -p ~/.
 ssh root@8.147.107.136                         # 之后直接进
 ```
 
+> 本机已经配好工作区密钥（`.ssh/astrbot_ed25519`），日常直接用上面的「本机已验证」命令；
+> 只有换机器/密钥丢失时才重配。注意本机 DSH 沙箱里 `ssh-keygen` 可能写不了 `.pub`
+> （报 `Bad file descriptor`），用 `ssh-keygen -y -f .ssh\astrbot_ed25519` 取公钥，
+> 不要依赖 `.pub` 文件。
+
 **D. 用 `deploy/remote.py` 跑命令 / 传文件**
 
 本机已无 `.venv`，需要自己装一次依赖：
@@ -70,13 +100,47 @@ python deploy\remote.py get /tmp/x.txt local.txt
 
 `remote.py` 里的命令默认在 `/` 下执行，涉及项目的命令记得先 `cd /opt/astrbot-napcat`。
 
+**E. 没有密钥时：密码 + SSH_ASKPASS（本机实测，2026-10-23）**
+
+本机没有默认私钥时，`ssh root@...` 会走密码交互；`BatchMode=yes` 会直接失败，
+`ssh` 也不会从 stdin 读密码。用 `SSH_ASKPASS` 助手最稳（助手在
+`deploy/ssh_askpass.cmd`，只回显环境变量，不含密码）：
+
+```powershell
+# 1) 密码只放环境变量，不写文件
+$env:ASTROOT_PASS = '<root 密码>'
+
+# 2) 助手 + OpenSSH 的 askpass 开关
+$env:SSH_ASKPASS = (Resolve-Path deploy\ssh_askpass.cmd).Path
+$env:SSH_ASKPASS_REQUIRE = 'force'
+$env:SSH_ASKPASS_PROMPT = 'none'
+$env:DISPLAY = 'localhost:0'
+
+# 3) host key 存工作区，避免写 C:\Users\...\.ssh
+New-Item -ItemType Directory -Force .ssh | Out-Null
+ssh -o StrictHostKeyChecking=accept-new `
+    -o UserKnownHostsFile=.ssh\known_hosts `
+    -o PreferredAuthentications=password `
+    -o PubkeyAuthentication=no `
+    root@8.147.107.136 "echo OK; hostname"
+```
+
+期望 `OK` + `iZ2ze3xrryab2ets4hr7r2Z`。
+
+> 这台机器上不要优先试 `deploy/remote.py`：它的 `paramiko` 依赖在 DSH 的
+> workspace-write 沙箱里会因 TEMP 目录 ACL 报 `Permission denied`，装不上。
+> 系统 `ssh.exe` + 上面的密钥/askpass 才是可靠路径。
+
 **连不上时按这个顺序查**
 
 | 现象 | 原因 |
 |---|---|
 | `Connection timed out` | 安全组没放行 22（Workbench 走控制台，不受影响） |
-| `Permission denied (publickey,password)` | 密码错，或 `AUSER` 不是 `root` |
-| `REMOTE HOST IDENTIFICATION HAS CHANGED` | 重置过系统/换过机器，旧指纹失效：`ssh-keygen -R 8.147.107.136` |
+| `Permission denied (publickey,password)` | 没带 `-i .ssh\astrbot_ed25519`，或密码错/`AUSER` 不是 `root`；用上面的密钥命令，或 E |
+| `Host key verification failed` | host key 不在默认路径；加 `-o UserKnownHostsFile=.ssh\known_hosts -o StrictHostKeyChecking=accept-new` |
+| `ssh-keygen` 保存 `.pub` 报 `Bad file descriptor` | DSH 沙箱 ACL；用 `ssh-keygen -y -f .ssh\astrbot_ed25519` 取公钥，不依赖 `.pub` |
+| `pip install paramiko` 报 TEMP `Permission denied` | 沙箱限制；别用 `remote.py`，用系统 `ssh.exe` + E |
+| `REMOTE HOST IDENTIFICATION HAS CHANGED` | 重置过系统/换过机器；`ssh-keygen -R 8.147.107.136 -f .ssh\known_hosts`（或删掉 `.ssh/known_hosts` 重连） |
 | 能登录但 `docker` 权限不足 | 用 `root` 登录，或 `usermod -aG docker <user>` |
 
 **进去之后先跑这三条**
@@ -200,9 +264,13 @@ PY
 
 | provider id | 模型 | `custom_extra_body` | 用途 |
 |---|---|---|---|
-| `deepseek/deepseek-flash` | flash | `{}` | 默认档，备用/回退 |
-| `deepseek/deepseek-flash-high` | flash | `{"reasoning_effort": "high"}` | **对话 + 判别都在用** |
+| `deepseek/deepseek-flash` | flash | `{}` | 默认/备用（DeepSeek 默认 effort 是 high，**别当 low**） |
+| `deepseek/deepseek-flash-low` | flash | `{"reasoning_effort": "low"}` | **当前回复主模型** |
+| `deepseek/deepseek-flash-high` | flash | `{"reasoning_effort": "high"}` | **判别（`nick_wake` 的 `JUDGE_PROVIDER_ID`）** |
 | `deepseek/deepseek-v4-pro` | v4-pro | `{}` | 更会说话但慢，未启用 |
+
+> 2026-10-23 起：回复切到 `flash-low`，判别保持 `flash-high`；
+> `deepseek/deepseek-flash` 的 `{}` 按 DeepSeek 默认实际是 high，不是 low。
 
 实测结论（别再重复踩）：
 
@@ -260,7 +328,7 @@ AstrBot 默认只有「@机器人 / 引用机器人 / @全体 / `/` 开头」才
 | 它乱接话 | 判别阈值/温度问题 | 调 `nick_wake/main.py` 顶部的 `WINDOW_SEC`、`SIGNALS`、冷却 |
 | 突然发不出消息，日志 `-10203 Ban state forbit write req` | QQ 风控：短时间批量发送 | 停发一段时间；`rate_limit` 收紧；不要新号当天刷屏 |
 | 人设突然变了 | `self_learning` 的 `enable_persona_evolution` | 关掉演化，或从 `backups/` 恢复 |
-| 回复慢 3 秒+ | `reasoning_effort: high` | 把 `model.provider_id` 换回 `deepseek/deepseek-flash` |
+| 回复慢 3 秒+ | 主模型档位/网络 | 主模型已是 `deepseek/deepseek-flash-low`；仍慢看网络/工具，或临时建 `thinking: disabled` 的 provider |
 | `@全体成员` 也回 | `ignore_at_all` 为 false | 现为 true，别改回去 |
 | 改完 `.md` 但行为没变 | 人设/配置只在启动时读 | 重启 `astrbot` 容器 |
 
