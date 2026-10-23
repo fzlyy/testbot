@@ -29,9 +29,65 @@ QQ 小号 ←扫码登录→ NapCat（OneBot v11 协议端）← 反向 WS → A
 | Docker | 26.1.3 + compose v2.27.0 |
 | 部署目录 | `/opt/astrbot-napcat` |
 
-登录方式（二选一）：阿里云 ECS Workbench 网页终端，或 `ssh root@8.147.107.136`。**凭据不在仓库里**；服务器上 `/opt/astrbot-napcat/CREDENTIALS.txt`（权限 600）记着面板账号、端口和目录。
+登录方式见下面 2.1。**凭据不在仓库里**；服务器上 `/opt/astrbot-napcat/CREDENTIALS.txt`（权限 600）记着面板账号、端口和目录。
 
-> 仓库里的 `deploy/remote.py` 是个 paramiko 的 SSH 助手（`AHOST/AUSER/APASS` 走环境变量，不落盘）。用它需要本机有 `python` + `paramiko`；不装也能用普通 `ssh`。
+### 2.1 怎么连上去
+
+**A. 阿里云 Workbench（什么都不用装）**
+
+控制台 → 云服务器 ECS → 实例 → 远程连接 → Workbench → 输入 root 密码。断网重连也不受影响，适合临时看一眼。
+
+**B. 本机 ssh（Windows 10/11 自带 OpenSSH）**
+
+```powershell
+ssh root@8.147.107.136
+```
+
+首次连接会问 `The authenticity of host ... (yes/no)`，输 `yes` 回车。**密码不入库**，放在你自己的密码管理器里；输密码时屏幕上没有任何回显，不是卡住了。
+
+**C. 配免密登录（推荐，省掉每次输密码）**
+
+```powershell
+ssh-keygen -t ed25519 -C "astrbot-ops"        # 一路回车，不设 passphrase
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@8.147.107.136 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+ssh root@8.147.107.136                         # 之后直接进
+```
+
+**D. 用 `deploy/remote.py` 跑命令 / 传文件**
+
+本机已无 `.venv`，需要自己装一次依赖：
+
+```powershell
+python -m pip install paramiko
+$env:AHOST='8.147.107.136'; $env:AUSER='root'
+$env:APASS='<root 密码>'          # 或者用密钥： $env:AKEY="$env:USERPROFILE\.ssh\id_ed25519"
+
+python deploy\remote.py run "cd /opt/astrbot-napcat && docker compose ps"
+python deploy\remote.py run --file ops.sh         # 上传 /tmp 后执行
+python deploy\remote.py put local.txt /tmp/x.txt
+python deploy\remote.py get /tmp/x.txt local.txt
+```
+
+`remote.py` 里的命令默认在 `/` 下执行，涉及项目的命令记得先 `cd /opt/astrbot-napcat`。
+
+**连不上时按这个顺序查**
+
+| 现象 | 原因 |
+|---|---|
+| `Connection timed out` | 安全组没放行 22（Workbench 走控制台，不受影响） |
+| `Permission denied (publickey,password)` | 密码错，或 `AUSER` 不是 `root` |
+| `REMOTE HOST IDENTIFICATION HAS CHANGED` | 重置过系统/换过机器，旧指纹失效：`ssh-keygen -R 8.147.107.136` |
+| 能登录但 `docker` 权限不足 | 用 `root` 登录，或 `usermod -aG docker <user>` |
+
+**进去之后先跑这三条**
+
+```bash
+cd /opt/astrbot-napcat
+docker compose ps        # 两个容器应当 Up
+cat CREDENTIALS.txt      # 面板账号 / 端口 / 目录
+```
+
+> 目录里那个 `CREDENTIALS.txt` 是**进去之后**才看得到的；SSH 密码本身不写进服务器上的任何文件，也不写进仓库。
 
 ---
 

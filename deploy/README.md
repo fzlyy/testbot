@@ -3,6 +3,9 @@
 目标是阿里云 ECS（Alibaba Cloud Linux 3 / 任意装了 Docker 26+ 的 x86_64 机器）。
 全部步骤都可以在 ECS Workbench 的网页终端里完成。
 
+> 前置：先能登进服务器。Workbench / 本机 `ssh root@8.147.107.136` / 免密登录 / `remote.py`
+> 四种方式见 [../AGENTS.md](../AGENTS.md) 第 2.1 节。
+
 ## 0. 前置：Docker 与镜像源
 
 ```bash
