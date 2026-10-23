@@ -1,0 +1,57 @@
+name: astrbot-napcat
+
+# AstrBot（机器人框架）+ NapCat（QQ 协议端）
+#
+# 容器间通过 botnet 内网互通，NapCat 以「反向 WS 客户端」身份连到
+# ws://astrbot:6199/ws（由 MODE=astrbot 模板自动生成 onebot11.json）。
+# 6199 / 3001 一律不做端口映射，公网只暴露两个 WebUI。
+
+services:
+  astrbot:
+    image: m.daocloud.io/docker.io/soulter/astrbot:latest
+    container_name: astrbot
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6185:6185"
+    volumes:
+      - ./data/astrbot:/AstrBot/data
+    networks:
+      - botnet
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  napcat:
+    image: m.daocloud.io/docker.io/mlikiowa/napcat-docker:latest
+    container_name: napcat
+    restart: unless-stopped
+    depends_on:
+      - astrbot
+    shm_size: "256m"
+    environment:
+      TZ: Asia/Shanghai
+      # astrbot 模板：自动生成反向 WS 客户端 ws://astrbot:6199/ws
+      MODE: astrbot
+      WEBUI_TOKEN: ${NAPCAT_WEBUI_TOKEN}
+      NAPCAT_UID: "0"
+      NAPCAT_GID: "0"
+    ports:
+      - "6099:6099"
+    volumes:
+      - ./data/qq:/app/.config/QQ
+      - ./data/napcat/config:/app/napcat/config
+    networks:
+      - botnet
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+networks:
+  botnet:
+    driver: bridge

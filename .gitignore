@@ -1,32 +1,28 @@
-# ---- 运行时数据（含 API Key、群聊记录，绝对不能进仓库）----
-data/
-.astrbot
-astrbot.lock
-logs/
+# ---- 本地备份（Zip 里是删除前的 data/、logs/、napcat 配置）----
+_backup/
 
-# ---- Python 虚拟环境与缓存 ----
+# ---- 本地运行时残留（已废弃；删不干净的部分见 README 的说明）----
+data/
 .venv/
+.tmp/
+.astrbot/
+logs/
+napcat/
+
+# ---- 部署密钥 ----
+deploy/.env
+.env
+
+# ---- Python 产物 ----
 __pycache__/
 *.py[cod]
 *.egg-info/
 
-# ---- 构建/下载的临时产物 ----
-.tmp/
-.pip-cache/
-tools/
-build/
-dist/
-
-# ---- NapCat 运行时与二进制（几百 MB）----
-napcat/
+# ---- 运行/调试产物 ----
+*.log
 *.zip
 *.7z
-
-# ---- 配置备份（含密钥）----
-*.bak
-*.bak-*
-*.bak.*
-*.orig
+*.tgz
 
 # ---- 编辑器 / 系统 ----
 .vscode/

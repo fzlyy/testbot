@@ -1,0 +1,12 @@
+﻿name: nick_wake
+display_name: 昵称唤醒 + 语义指代
+short_desc: 叫名字 / 说到它 / 接它的话时才会回复
+desc: >-
+  第一层：命中昵称（大肥鱼/肥鱼/鱼娘/鲸鱼娘）直接唤醒。
+  第二层：它 90 秒内说过话，或消息含高精度信号词（它/这鱼/这货/是不是在说我）
+  时，用 reasoning_effort=high 的 deepseek-flash 判一次「这条是不是在跟它说话」。
+  已删除早先「跟在它后面 30 秒的短句直接唤醒」的规则——那条在活跃群里误判最多。
+help: 参数在 main.py 顶部：NICKNAMES / WINDOW_SEC / COOLDOWN_SEC / HOURLY_CAP / JUDGE_PROVIDER_ID / GROUP_WHITELIST。
+version: 2.3.1
+author: local
+astrbot_version: ">=4.0.0"
