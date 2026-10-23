@@ -104,6 +104,36 @@ docker logs --since 2m astrbot | grep -E 'Plugin nick_wake|Plugin group_imprint'
 
 然后把 `agent_runner.config.model.provider_id` 设成要用的那个。
 
+## 6.5 网页搜索（可选）
+
+AstrBot 4.29 自带网页搜索，不需要装插件。推荐用 DeepSeek Search API：与对话模型
+共用同一个 API Key，按成功请求计费（5 元 / 1000 次，失败不计费）。开启后模型会
+按需调用 `web_search_deepseek`，读整页用 `deepseek_fetch_web_page`。
+
+**面板（推荐，不用停机）**：`配置 → 默认配置 → AI → 能力 → 网页搜索`，
+打开开关，提供商选 `DeepSeek`，把对话模型的 Key 填进搜索 Key，保存。
+
+**命令行（等价，可脚本化）**：
+
+```bash
+cd /opt/astrbot-napcat
+docker compose stop astrbot                    # 必须先停，见 5.1
+cp data/astrbot/cmd_config.json /root/cmd_config.$(date +%F-%H%M%S).json
+python3 enable_web_search.py --config data/astrbot/cmd_config.json \
+    --provider deepseek --key '<DeepSeek API Key>'
+docker compose start astrbot
+```
+
+`enable_web_search.py` 从本仓库 `deploy/` 拷到服务器；`--check` 可先看状态，
+`--disable` 可关闭。跑完 `--check` 应显示 `=> tool injection: ON`。
+
+**验证**：`docker logs --since 5m astrbot | grep '使用工具'`，出现
+`使用工具：web_search_deepseek` 就说明模型真的调了搜索。
+
+**注意**：私聊直接说“上网搜索下 xxx”；群里要先 @ 它或叫“鱼娘 / 大肥鱼”，
+默认只有被叫到才唤醒。搜不搜由模型决定，想强制就说“先搜索再回答”。
+401 / 402 / 429 分别是 Key 无效、余额不足、触发限速。
+
 ## 7. 检查清单
 
 ```bash
