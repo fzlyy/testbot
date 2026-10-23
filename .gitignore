@@ -13,6 +13,9 @@ napcat/
 deploy/.env
 .env
 
+# ---- 本地运维临时工具（可能含凭据，禁止提交）----
+.tools/
+
 # ---- Python 产物 ----
 __pycache__/
 *.py[cod]
